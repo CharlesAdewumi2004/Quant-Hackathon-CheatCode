@@ -53,6 +53,8 @@ def add_price_direction_label(df, price_col='Close'):
     
     return df
 
+
+
 if __name__ == "__main__":
     if not os.path.exists(f"data/training_data_multi.csv"):
         print("Downloading hackathon data!")
