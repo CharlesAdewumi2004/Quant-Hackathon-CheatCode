@@ -35,5 +35,11 @@ def data_cleaning():
 
     return df
 
-
-download_hackathon_data()   
+if not os.path.exists(f"data/training_data_multi.csv"):
+    print("Downloading hackathon data!")
+    download_hackathon_data() 
+else:
+    print(f"Data cleaning the file training_data_multi.csv!")
+    data = data_cleaning()
+    data.to_csv("data/cleaned.csv")
+    print(f"Data saved as cleaned.csv")
