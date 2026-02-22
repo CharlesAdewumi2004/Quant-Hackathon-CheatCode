@@ -55,14 +55,19 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
                 "Resistance", "Support"]
     
     X = df[features].fillna(0).values
-    probs = model.predict_proba(X)[:, 1]
+    #probs = model.predict_proba(X)[:, 1]
+    probs = model.predict(X)
     
     # --- 1. DYNAMIC REGIME DETECTION ---
     vol_ratio = df["Volatility_30"] / df["Vol_Benchmark"].fillna(df["Volatility_30"].mean())
     trend_strength = (df["SMA_20"] - df["SMA_50"]) / df["SMA_50"]
     
     # Thresholding logic that stays aggressive
-    dynamic_thresh = np.where((vol_ratio < 0.8) & (trend_strength > 0.02), 0.5001, 0.505) 
+    # Create a base threshold and subtract a "confidence bonus"
+    base_thresh = 0.505
+    # Higher trend strength and lower vol ratio reduce the threshold
+    bonus = (trend_strength * 0.1) + ((1 - vol_ratio) * 0.005)
+    dynamic_thresh = base_thresh - np.clip(bonus, 0, 0.005)
     signals = np.where(probs > dynamic_thresh, 1, np.where(probs < (1 - dynamic_thresh), -1, 0))
 
     # --- 2. BULL PERSISTENCE ---
@@ -79,7 +84,7 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
         curr_vol_ratio = vol_ratio.iloc[i]
         
         # Determine multiplier based on regime
-        mult = 3.0 if curr_vol_ratio < 1.0 else 4.5
+        mult = np.clip(3.0 * curr_vol_ratio, 3.0, 5.0)
         
         if in_pos == 1:
             # Trailing the stop
