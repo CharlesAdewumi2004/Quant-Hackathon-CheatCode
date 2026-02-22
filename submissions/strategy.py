@@ -6,10 +6,10 @@ import xgboost as xgb
 
 # 1. LOAD THE MASTER MODEL
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "spy_xgb_model.joblib")
+MODEL_PATH = os.path.join(BASE_DIR, "models", "spy_xgb_model.joblib") #model file path
 
 if os.path.exists(MODEL_PATH):
-    model = joblib.load(MODEL_PATH)
+    model = joblib.load(MODEL_PATH) #load model
 else:
     model = None
 
