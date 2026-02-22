@@ -1,0 +1,10 @@
+{
+    "total_return": 15.419099063074889,
+    "annualized_return": 0.2923203778622998,
+    "sharpe_ratio": 1.2826622021884062,
+    "max_drawdown": -0.32961781170822474,
+    "calmar_ratio": 0.8868464247953313,
+    "win_rate": 0.5661818181818182,
+    "num_days": 2750,
+    "signal_time_sec": 0.0497
+}

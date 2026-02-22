@@ -1,91 +1,93 @@
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Dense, LSTM, GRU, Dropout, Input, Conv1D, MaxPooling1D, Flatten, GlobalAveragePooling1D, BatchNormalization
-from tensorflow.keras.callbacks import ReduceLROnPlateau
-from tensorflow.keras.utils import plot_model
+import pandas as pd
 import numpy as np
+import xgboost as xgb
+import joblib
+import os
 import matplotlib.pyplot as plt
 
-class TradingModel(Model):
-    def __init__(self):
-        super().__init__()
+# Keras Libraries
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Dense, GRU, Dropout, Conv1D, GlobalAveragePooling1D, 
+    BatchNormalization, SpatialDropout1D, Bidirectional, LeakyReLU
+)
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.regularizers import l2
 
-        # fields
+# Project Modules (Ensure these exist in your path)
+# import utilities
+# import technical_indicators
+
+# --- CLASS 1: YOUR DEEP LEARNING GRU ARCHITECTURE ---
+class TradingModel(Model):
+    def __init__(self, input_shape=None, **kwargs):
+        super(TradingModel, self).__init__(**kwargs)
         self.history = None
 
-        # Conv block
-        self.conv1 = Conv1D(64, 3, activation='relu')
+        # 1. Conv block
+        self.conv1 = Conv1D(
+            filters=64, 
+            kernel_size=5, 
+            padding="same",
+            kernel_regularizer=l2(1e-3)
+        )
+        self.leaky_conv = LeakyReLU(alpha=0.01)
         self.bn1 = BatchNormalization()
-        self.pool1 = MaxPooling1D(2)
+        self.spatial_drop = SpatialDropout1D(0.4)
 
-        # GRU stack
-        self.gru1 = GRU(50, return_sequences=True)
-        self.dropout1 = Dropout(0.2)
+        # 2. Bidirectional GRUs
+        self.gru1 = Bidirectional(GRU(32, return_sequences=True, kernel_regularizer=l2(1e-3)))
+        self.dropout1 = Dropout(0.5)
 
-        self.gru2 = GRU(50)
-        self.dropout2 = Dropout(0.2)
+        self.gru2 = Bidirectional(GRU(32, kernel_regularizer=l2(1e-3)))
+        self.dropout2 = Dropout(0.5)
 
-        # Head
-        self.dense1 = Dense(25, activation='relu')
-        self.out = Dense(1, activation='sigmoid')   # Binary classification output (up/down)
+        # 3. Dense Head
+        self.dense1 = Dense(16, kernel_regularizer=l2(1e-3))
+        self.out = Dense(1, activation='sigmoid')  
 
     def call(self, inputs, training=False):
         x = self.conv1(inputs)
+        x = self.leaky_conv(x)
         x = self.bn1(x, training=training)
-        x = self.pool1(x)
-
+        x = self.spatial_drop(x, training=training)
         x = self.gru1(x)
         x = self.dropout1(x, training=training)
-
         x = self.gru2(x)
         x = self.dropout2(x, training=training)
-
         x = self.dense1(x)
         return self.out(x)
-    
-    def compile(self, optimizer='adam', loss='binary_crossentropy'):
-        super().compile(optimizer=optimizer, loss=loss)
-    
-    def fit(self, x, y=None, epochs=1, batch_size=32, callbacks=[]):
-        lr_callback = ReduceLROnPlateau(
-            monitor='val_loss',      # metric to monitor
-            factor=0.5,              # multiply LR by this factor
-            patience=5,              # wait this many epochs before reducing
-            min_lr=1e-6,             # lower bound for LR
-            verbose=1
-        )
 
-        callbacks.append(lr_callback)
-        self.history = super().fit(x, y, epochs=epochs, batch_size=batch_size, callbacks=callbacks)
-        return self.history
-    
-    def plot_model(self):
-        plot_model(self, show_shapes=True, show_layer_names=True)
-    
-    def plot_training_history(self, history=None):
-        if history is None:
-            history = self.history
+@tf.keras.utils.register_keras_serializable()
+class KerasModel(Model):
+    def __init__(self, spy_path="models/spy_xgb_model.joblib", qqq_path="models/qqq_xgb_model.joblib", **kwargs):
+        super(KerasModel, self).__init__(**kwargs)
+        self.spy_path = spy_path
+        self.qqq_path = qqq_path
+        self.model_spy = None
+        self.model_qqq = None
+        
+        if os.path.exists(spy_path):
+            self.model_spy = joblib.load(spy_path)
+        if os.path.exists(qqq_path):
+            self.model_qqq = joblib.load(qqq_path)
 
-        plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(history.history['loss'], label='Train Loss')
+    def call(self, inputs, training=False):
+        def _ensemble_predict(x_np):
+            if self.model_spy is None or self.model_qqq is None:
+                return np.zeros((x_np.shape[0], 1), dtype=np.float32)
+            
+            p1 = self.model_spy.predict_proba(x_np)[:, 1]
+            p2 = self.model_qqq.predict_proba(x_np)[:, 1]
+            
+            # Weighted ensemble for better stability
+            avg_probs = (p1 + p2) / 2.0
+            return avg_probs.reshape(-1, 1).astype(np.float32)
 
-        if 'val_loss' in history.history:
-            plt.plot(history.history['val_loss'], label='Val Loss')
+        return tf.py_function(_ensemble_predict, [inputs], tf.float32)
 
-        plt.title('Loss Over Epochs')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend()
-
-        if 'accuracy' in history.history:
-            plt.subplot(1, 2, 2)
-            plt.plot(history.history['accuracy'], label='Train Accuracy')
-            if 'val_accuracy' in history.history:
-                plt.plot(history.history['val_accuracy'], label='Val Accuracy')
-            plt.title('Accuracy Over Epochs')
-            plt.xlabel('Epoch')
-            plt.ylabel('Accuracy')
-            plt.legend()
-
-        plt.tight_layout()
-        plt.show()
+    def get_config(self):
+        config = super().get_config()
+        config.update({"spy_path": self.spy_path, "qqq_path": self.qqq_path})
+        return config

@@ -35,11 +35,30 @@ def data_cleaning():
 
     return df
 
-if not os.path.exists(f"data/training_data_multi.csv"):
-    print("Downloading hackathon data!")
-    download_hackathon_data() 
-else:
-    print(f"Data cleaning the file training_data_multi.csv!")
-    data = data_cleaning()
-    data.to_csv("data/cleaned.csv")
-    print(f"Data saved as cleaned.csv")
+def add_price_direction_label(df, price_col='Close'):
+    """
+    Adds a 'Label' column to df:
+      [1,0] if tomorrow's price goes up
+      [0,1] if tomorrow's price goes down or stays the same
+    """
+    df = df.copy()
+    # Shift the Close column to get tomorrow's price
+    df['Tomorrow_Close'] = df[price_col].shift(-1)
+    
+    # Create labels
+    df['Label'] = df.apply(lambda row: [1, 0] if row['Tomorrow_Close'] > row[price_col] else [0, 1], axis=1)
+    
+    # Drop the temporary column
+    df.drop(columns='Tomorrow_Close', inplace=True)
+    
+    return df
+
+if __name__ == "__main__":
+    if not os.path.exists(f"data/training_data_multi.csv"):
+        print("Downloading hackathon data!")
+        download_hackathon_data() 
+    else:
+        print(f"Data cleaning the file training_data_multi.csv!")
+        data = data_cleaning()
+        data.to_csv("data/cleaned.csv")
+        print(f"Data saved as cleaned.csv")
