@@ -162,4 +162,4 @@ def run_evaluation(strategy_path, test_data_path, ticker="SPY"):
     print(f"  Signal Speed:  {signal_time:.4f}s")
 
 if __name__ == "__main__":
-    run_evaluation("submissions/strategy.py", "data/SPY.csv")
+    run_evaluation("submissions/strategy.py", "data/BTC.csv")

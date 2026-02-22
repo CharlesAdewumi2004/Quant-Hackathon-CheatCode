@@ -91,4 +91,3 @@ def prepare_data(df=None):
     
     print(f"Technical indicators successfully included and stocks seperated!")
     return df_spy, df_qqq
-

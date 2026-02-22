@@ -47,7 +47,7 @@ def train_master_model():
         objective='binary:logistic',
         eval_metric=['logloss', 'error'],
         early_stopping_rounds=100,
-        random_state=200,
+        random_state=42,
     )
 
     print("\n--- 2. Training Model ---")
