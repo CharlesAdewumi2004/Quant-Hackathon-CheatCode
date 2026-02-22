@@ -81,7 +81,7 @@ def get_available_datasets():
         return []
     return [f for f in os.listdir(data_dir) if f.endswith('.csv')]
 
-st.sidebar.header("📂 Data Source")
+st.sidebar.header("Data Source")
 datasets = get_available_datasets()
 if not datasets:
     st.sidebar.error("No CSV files found in the 'data/' directory.")
@@ -168,7 +168,7 @@ df, data_source = load_data(selected_dataset, selected_ticker)
 
 if not df.empty:
     st.sidebar.markdown("---")
-    st.sidebar.header("⚙️ Strategy")
+    st.sidebar.header("Strategy")
     uploaded_file = st.sidebar.file_uploader("Upload your strategy file (.py)", type=["py"])
 
     if st.sidebar.button("Run Model", type="primary") and uploaded_file is not None:
@@ -238,7 +238,7 @@ if not df.empty:
 
         # ==================== EQUITY CURVE ====================
 
-        st.subheader(f"📈 Strategy vs. Benchmark (Starting: ${STARTING_BALANCE:,.2f})")
+        st.subheader(f"Strategy vs. Benchmark (Starting: ${STARTING_BALANCE:,.2f})")
         fig_cum = go.Figure()
         fig_cum.add_trace(go.Scatter(x=df.index, y=df['Cumulative_Equity'], fill='tozeroy', line_color='#00FF41', name="Charlie's Kids Strategy"))
         fig_cum.add_trace(go.Scatter(x=df.index, y=df['Baseline_Equity'], line_color='#888888', line=dict(dash='dash'), name="Buy & Hold Baseline"))
@@ -250,7 +250,7 @@ if not df.empty:
 
         st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
         one_year_ago = df.index.max() - pd.DateOffset(years=1)
-        st.subheader(f"🔍 Last Year Alpha ({one_year_ago.strftime('%b %Y')} – {df.index.max().strftime('%b %Y')})")
+        st.subheader(f"Last Year Alpha ({one_year_ago.strftime('%b %Y')} – {df.index.max().strftime('%b %Y')})")
         col_chart, col_metrics = st.columns([3, 1])
 
         y_df = df[df.index >= one_year_ago].copy()
@@ -286,7 +286,7 @@ if not df.empty:
 
     # ==================== CANDLESTICK CHART ====================
 
-    st.subheader("🎯 Price Action & Signals")
+    st.subheader("Price Action & Signals")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
@@ -315,7 +315,7 @@ if not df.empty:
         col_table, col_xai = st.columns([1, 1])
 
         with col_table:
-            st.subheader("📊 Annual Performance Matrix")
+            st.subheader("Annual Performance Matrix")
             df['Year'] = df.index.year
             table_data = []
             for year, group in df.groupby('Year'):
@@ -326,7 +326,7 @@ if not df.empty:
 
         with col_xai:
             st.markdown('<div class="xai-container">', unsafe_allow_html=True)
-            st.subheader("🧠 XAI: Model Decision Logic")
+            st.subheader("XAI: Model Decision Logic")
             MODEL_PATH = "models/spy_xgb_model.joblib"
             if os.path.exists(MODEL_PATH):
                 model = joblib.load(MODEL_PATH)
@@ -345,7 +345,7 @@ if not df.empty:
         # ==================== ADVANCED ANALYTICS ====================
 
         st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
-        st.subheader("🔬 Advanced Institutional Analytics")
+        st.subheader("Advanced Institutional Analytics")
 
         downside_returns = df['Net_Returns'][df['Net_Returns'] < 0]
         sortino = (df['Net_Returns'].mean() / downside_returns.std()) * np.sqrt(TRADING_DAYS) if downside_returns.std() != 0 else 0
@@ -373,7 +373,7 @@ if not df.empty:
     # ==================== TRADE LOG TABLE ====================
 
     st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
-    st.subheader("📋 Trade Logs / Signal History")
+    st.subheader("Trade Logs / Signal History")
 
     if 'Signal' in df.columns:
         log_df = df[df['Signal'] != 0].copy()
