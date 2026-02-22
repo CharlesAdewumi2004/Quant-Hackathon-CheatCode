@@ -135,3 +135,6 @@ if __name__ == "__main__":
     # ----------------------------
     models["SPY"].plot_training_history()
     models["QQQ"].plot_training_history()
+    
+    models["SPY"].save("models/spy_model.h5")
+    models["QQQ"].save("models/qqq_model.h5")

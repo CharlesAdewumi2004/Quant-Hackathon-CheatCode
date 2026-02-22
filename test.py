@@ -131,4 +131,4 @@ def run_evaluation(strategy_path, test_data_path):
 
 
 if __name__ == "__main__":
-    run_evaluation("submissions/strategy.py", "data/exxonmobil_xom.csv")
+    run_evaluation("submissions/strategy.py", "data/SPY.csv")
