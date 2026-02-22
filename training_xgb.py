@@ -5,7 +5,7 @@ import joblib
 import os
 import utilities
 import technical_indicators
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 
 def train_master_model():
@@ -25,61 +25,57 @@ def train_master_model():
         "Resistance", "Support"
     ]
 
+    os.makedirs('models', exist_ok=True)
+    os.makedirs('plots', exist_ok=True)
+
+    # We train on combined data for the 'Master' model
     df_combined = pd.concat([df_spy, df_qqq], axis=0).dropna(subset=['Target'] + features)
     X = df_combined[features].values
     y = df_combined['Target'].values
 
-    # Time-Series Split
     split = int(len(X) * 0.8)
     X_train, X_val = X[:split], X[split:]
     y_train, y_val = y[:split], y[split:]
 
-    # --- 2. MODIFIED XGBOOST CONFIG ---
-    # We removed scale_pos_weight because it over-corrected.
-    # We increased max_depth to 6 so it can find deeper patterns.
+    # Optimized XGBoost Config
     model = xgb.XGBClassifier(
-        n_estimators=500,      
-        max_depth=6,           
-        learning_rate=0.01,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        n_estimators=1000,
+        max_depth=4,
+        learning_rate=0.005,
+        subsample=0.6,
+        colsample_bytree=0.6,
         objective='binary:logistic',
-        eval_metric='logloss', 
-        early_stopping_rounds=50,
+        eval_metric=['logloss', 'error'],
+        early_stopping_rounds=100,
         random_state=42
     )
 
-    print("\n--- 3. Training Model ---")
+    print("\n--- 2. Training Model ---")
     model.fit(
         X_train, y_train,
-        eval_set=[(X_val, y_val)],
-        verbose=50
+        eval_set=[(X_train, y_train), (X_val, y_val)],
+        verbose=100
     )
 
-    # --- 4. DYNAMIC THRESHOLDING ---
-    val_probs = model.predict_proba(X_val)[:, 1]
-    
-    # We'll use the median of probabilities as a threshold 
-    # to ensure the report shows both Up and Down.
-    threshold = np.median(val_probs)
-    val_preds = (val_probs > threshold).astype(int) 
+    # --- 3. OUTPUT ACCURACY ---
+    train_preds = model.predict(X_train)
+    val_preds = model.predict(X_val)
+    print(f"\nFINAL TRAINING ACCURACY:   {accuracy_score(y_train, train_preds):.2%}")
+    print(f"FINAL VALIDATION ACCURACY: {accuracy_score(y_val, val_preds):.2%}")
 
-    print("\n" + "="*40)
-    print(f"REPORT THRESHOLD (Median): {threshold:.4f}")
-    print(f"VALIDATION ACCURACY:       {accuracy_score(y_val, val_preds):.2%}")
-    print("="*40)
+    # --- 4. SAVE PLOTS ---
+    results = model.evals_result()
+    plt.figure(figsize=(10, 5))
+    plt.plot(results['validation_0']['logloss'], label='Train Loss')
+    plt.plot(results['validation_1']['logloss'], label='Val Loss')
+    plt.title("XGBoost Training Progress")
+    plt.legend()
+    plt.savefig('plots/learning_curve.png')
+    print("Learning curve saved to plots/learning_curve.png")
 
-    print("\n--- Final Classification Report ---")
-    print(classification_report(y_val, val_preds, target_names=['Down (0)', 'Up (1)']))
-
-    # --- 5. Save & Plot ---
-    os.makedirs('models', exist_ok=True)
+    # --- 5. SAVE MODEL ---
     joblib.dump(model, 'models/spy_xgb_model.joblib')
-    
-    plt.figure(figsize=(10, 6))
-    pd.Series(model.feature_importances_, index=features).nlargest(10).plot(kind='barh')
-    plt.title("Feature Importance")
-    plt.show()
+    print("Model saved to models/spy_xgb_model.joblib")
 
 if __name__ == "__main__":
     train_master_model()
