@@ -6,16 +6,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class TradingModel(Model):
-    def __init__(self):
+    def __init__(self, input_shape):
         super().__init__()
 
         # fields
         self.history = None
 
         # Conv block
-        self.conv1 = Conv1D(64, 3, activation='relu')
+        self.conv1 = Conv1D(64, kernel_size=3, activation='relu', padding="same")
         self.bn1 = BatchNormalization()
-        self.pool1 = MaxPooling1D(2)
+        #self.pool1 = MaxPooling1D(2)
 
         # GRU stack
         self.gru1 = GRU(50, return_sequences=True)
@@ -28,10 +28,12 @@ class TradingModel(Model):
         self.dense1 = Dense(25, activation='relu')
         self.out = Dense(1, activation='sigmoid')   # Binary classification output (up/down)
 
+        # self.build((None, input_shape))  # Build the model with the specified input shape
+
     def call(self, inputs, training=False):
         x = self.conv1(inputs)
         x = self.bn1(x, training=training)
-        x = self.pool1(x)
+        #x = self.pool1(x)
 
         x = self.gru1(x)
         x = self.dropout1(x, training=training)
@@ -42,8 +44,8 @@ class TradingModel(Model):
         x = self.dense1(x)
         return self.out(x)
     
-    def compile(self, optimizer='adam', loss='binary_crossentropy'):
-        super().compile(optimizer=optimizer, loss=loss)
+    def compile(self, optimizer='adam', loss='binary_crossentropy', metrics=['accuracy']):
+        super().compile(optimizer=optimizer, loss=loss, metrics=metrics)
     
     def fit(self, x, y=None, epochs=1, batch_size=32, callbacks=[]):
         lr_callback = ReduceLROnPlateau(
