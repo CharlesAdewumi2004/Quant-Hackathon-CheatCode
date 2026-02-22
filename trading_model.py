@@ -1,39 +1,45 @@
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Dense, LSTM, GRU, Dropout, Input, Conv1D, MaxPooling1D, Flatten, GlobalAveragePooling1D, BatchNormalization
-from tensorflow.keras.callbacks import ReduceLROnPlateau
-from tensorflow.keras.utils import plot_model
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GRU, Dropout, Conv1D, GlobalAveragePooling1D, BatchNormalization, SpatialDropout1D
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.regularizers import l2
 import numpy as np
 import matplotlib.pyplot as plt
 
 class TradingModel(Model):
-    def __init__(self, input_shape):
+    def __init__(self, input_shape=None):
         super().__init__()
-
-        # fields
         self.history = None
 
-        # Conv block
-        self.conv1 = Conv1D(64, kernel_size=3, activation='relu', padding="same")
+        # Conv block - Wider kernel to see multi-day patterns, L2 to prevent noise fitting
+        self.conv1 = Conv1D(
+            filters=64, 
+            kernel_size=5, 
+            activation='relu', 
+            padding="same",
+            kernel_regularizer=l2(1e-4) 
+        )
+        
         self.bn1 = BatchNormalization()
-        #self.pool1 = MaxPooling1D(2)
+        self.spatial_drop = SpatialDropout1D(0.2) # Drops entire 1D feature maps
 
-        # GRU stack
-        self.gru1 = GRU(50, return_sequences=True)
-        self.dropout1 = Dropout(0.2)
+        # GRU stack - L2 regularizers prevent exploding weights
+        self.gru1 = GRU(50, return_sequences=True, kernel_regularizer=l2(1e-4))
+        self.dropout1 = Dropout(0.3)
 
-        self.gru2 = GRU(50)
-        self.dropout2 = Dropout(0.2)
+        self.gru2 = GRU(50, kernel_regularizer=l2(1e-4))
+        self.dropout2 = Dropout(0.3)
 
         # Head
-        self.dense1 = Dense(25, activation='relu')
-        self.out = Dense(1, activation='sigmoid')   # Binary classification output (up/down)
-
-        # self.build((None, input_shape))  # Build the model with the specified input shape
+        self.dense1 = Dense(25, activation='relu', kernel_regularizer=l2(1e-4))
+        
+        # BINARY OUTPUT: 0 (Down) or 1 (Up)
+        self.out = Dense(1, activation='sigmoid')  
 
     def call(self, inputs, training=False):
         x = self.conv1(inputs)
         x = self.bn1(x, training=training)
-        #x = self.pool1(x)
+        x = self.spatial_drop(x, training=training)
 
         x = self.gru1(x)
         x = self.dropout1(x, training=training)
@@ -44,20 +50,45 @@ class TradingModel(Model):
         x = self.dense1(x)
         return self.out(x)
     
-    def compile(self, optimizer='adam', loss='binary_crossentropy', metrics=['accuracy']):
+    def compile(self, optimizer=None, loss='binary_crossentropy', metrics=['accuracy']):
+        if optimizer is None:
+            optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
         super().compile(optimizer=optimizer, loss=loss, metrics=metrics)
     
-    def fit(self, x, y=None, epochs=1, batch_size=32, callbacks=[]):
+    def fit(self, x, y, epochs=100, batch_size=32, validation_split=0.2, validation_data=None, callbacks=None):
+        if callbacks is None:
+            callbacks = []
+            
         lr_callback = ReduceLROnPlateau(
-            monitor='val_loss',      # metric to monitor
-            factor=0.5,              # multiply LR by this factor
-            patience=5,              # wait this many epochs before reducing
-            min_lr=1e-6,             # lower bound for LR
-            verbose=1
+            monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6, verbose=1
+        )
+        early_stop = EarlyStopping(
+            monitor='val_loss', patience=15, restore_best_weights=True
         )
 
-        callbacks.append(lr_callback)
-        self.history = super().fit(x, y, epochs=epochs, batch_size=batch_size, callbacks=callbacks)
+        callbacks.extend([lr_callback, early_stop])
+        
+        # --- THE MOST IMPORTANT FIX FOR THE 55% CEILING ---
+        # Calculate weights to penalize the model for just guessing "1" (Up)
+        zero_count = np.sum(y == 0)
+        one_count = np.sum(y == 1)
+        total = len(y)
+        
+        weight_for_0 = (1 / zero_count) * (total / 2.0)
+        weight_for_1 = (1 / one_count) * (total / 2.0)
+        class_weight = {0: weight_for_0, 1: weight_for_1}
+        
+        print(f"Applying Class Weights: 0 (Down): {weight_for_0:.2f}, 1 (Up): {weight_for_1:.2f}")
+
+        self.history = super().fit(
+            x, y, 
+            epochs=epochs, 
+            batch_size=batch_size, 
+            validation_split=validation_split,
+            callbacks=callbacks,
+            class_weight=class_weight,
+            shuffle=True
+        )
         return self.history
     
     def plot_model(self):
