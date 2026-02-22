@@ -40,14 +40,14 @@ def train_master_model():
     # Optimized XGBoost Config
     model = xgb.XGBClassifier(
         n_estimators=1000,
-        max_depth=4,
+        max_depth=8,
         learning_rate=0.005,
         subsample=0.6,
         colsample_bytree=0.6,
         objective='binary:logistic',
         eval_metric=['logloss', 'error'],
         early_stopping_rounds=100,
-        random_state=42
+        random_state=200,
     )
 
     print("\n--- 2. Training Model ---")

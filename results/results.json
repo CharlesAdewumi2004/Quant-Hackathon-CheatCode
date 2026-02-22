@@ -1,10 +1,10 @@
 {
-    "total_return": 9.453073954619335,
-    "annualized_return": 0.23993756040863579,
-    "sharpe_ratio": 1.305489773536978,
-    "max_drawdown": -0.19348928932924703,
-    "calmar_ratio": 1.2400560322507104,
-    "win_rate": 0.5570909090909091,
+    "total_return": 41.18451909968302,
+    "annualized_return": 0.4090393465078406,
+    "sharpe_ratio": 2.0452669657098768,
+    "max_drawdown": -0.1934892893292477,
+    "calmar_ratio": 2.1140154471899777,
+    "win_rate": 0.5858181818181818,
     "num_days": 2750,
-    "signal_time_sec": 0.0446
+    "signal_time_sec": 0.0455
 }
